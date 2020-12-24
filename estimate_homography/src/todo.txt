@@ -1,0 +1,2 @@
+1. How do we get the coordinates of the midpoint of a perspectively distorted
+image? A homography does not preserve midpoints.

@@ -1,0 +1,17 @@
+Required
+--------
+0. construct_homography
+1. Test construct_homography vs findHomography
+2. Write function to apply homography to image
+3. Test function against warpPerspective
+4. Get the whole image into the transformed image.
+5. Use remap + interpolation to make the images look ok.
+6. Implement the algorithm to solve only for inhomogeneous coordinates (system
+of 9 equations), we don't really need 12. Also update blog post to reflect
+this.
+------------------------------------------------
+7. Figure out what the teacher meant by the program should take distance as input?
+
+Optional
+--------
+1. Read code of findHomography with SVD

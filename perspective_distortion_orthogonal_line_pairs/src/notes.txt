@@ -1,0 +1,5 @@
+Notes
+-----
+1. Cholesky decomposition and SVD/Eigenvalue decomposition both give K such
+that KKt = S. Using Cholesky as given in the textbook does not give the correct
+result but using the SVD/Eigenvalue version does. Why?
