@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.9)
+find_package( OpenCV REQUIRED )
+project(MVG VERSION 1.0.1 DESCRIPTION "multiple view geometry algorithms" )
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+add_library(MVG SHARED src/mvg.cpp)
+target_link_libraries(MVG PUBLIC ${OpenCV_LIBS})
+set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
