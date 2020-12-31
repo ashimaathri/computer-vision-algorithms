@@ -3,16 +3,6 @@
 using namespace cv;
 using namespace std;
 
-void receivePointCorrespondences(std::vector <Point2f> &points1,
-    std::vector <Point2f> &points2,
-    std::vector <Point2f> &points3,
-    std::vector <Point2f> &points4) {
-  receivePointCorrespondence(points1, "first");
-  receivePointCorrespondence(points2, "second");
-  receivePointCorrespondence(points3, "third");
-  receivePointCorrespondence(points4, "fourth");
-}
-
 void copyPerspectively(Mat &to, Mat from, Mat homography, std::vector <Point2f> points) {
   int toHeight = to.size().height;
   int toWidth = to.size().width;
@@ -55,41 +45,21 @@ void copyPerspectively(Mat &to, Mat from, Mat homography, std::vector <Point2f> 
 
 int main(int argc, char** argv )
 {
-  if (argc != 5) {
-    printf("usage: DisplayImage.out <Image_Path1> <Image_Path2> <Image_Path3> <Image_Path4>\n");
+  if (argc != 3) {
+    printf("usage: ApplyHomography <Destination Image> <Source Image>\n");
     return -1;
   }
 
-  Mat image1 = imread(argv[1], 1);
-  Mat image2 = imread(argv[2], 1);
-  Mat image3 = imread(argv[3], 1);
-  Mat image4 = imread(argv[4], 1);
-  if(!image1.data || !image2.data || !image3.data || !image4.data) {
-    printf("No image data \n");
-    return -1;
-  }
+  Mat dst_image = imread(argv[1], 1);
+  Mat src_image = imread(argv[2], 1);
 
-  std::vector <Point2f> points1;
-  std::vector <Point2f> points2;
-  std::vector <Point2f> points3;
-  std::vector <Point2f> points4;
-  receivePointCorrespondences(points1, points2, points3, points4);
+  vector<Point2f> dst_points, src_points;
+  receivePointCorrespondence(dst_points, "destination");
+  receivePointCorrespondence(src_points, "source");
 
-  Mat homography12 = computeHomography(points2, points1);
-  Mat homography23 = computeHomography(points3, points2);
-  Mat homography41 = computeHomography(points1, points4);
-  Mat homography42 = computeHomography(points2, points4);
-  Mat homography43 = computeHomography(points3, points4);
+  Mat homography = computeHomography(dst_points, src_points);
 
-  //Mat correctedImage13 = changePerspective(image1, homography23 * homography12);
-
-  //display(correctedImage13);
-  //write(argv[1], correctedImage13);
-  copyPerspectively(image1, image4, homography41, points1);
-  write(argv[1], image1);
-  copyPerspectively(image2, image4, homography42, points2);
-  write(argv[2], image2);
-  copyPerspectively(image3, image4, homography43, points3);
-  write(argv[3], image3);
+  copyPerspectively(dst_image, src_image, homography, dst_points);
+  write(argv[1], dst_image);
   return 0;
 }
