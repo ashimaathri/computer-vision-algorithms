@@ -3,8 +3,8 @@
 using namespace cv;
 using namespace std;
 
-const Mat SOBEL_X = (Mat_<float>(3, 3) << 1, 0, -1, 2, 0, -2, 1, 0, -1);
-const Mat SOBEL_Y = (Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
+const Mat SOBEL_X = (Mat_<char>(3, 3) << 1, 0, -1, 2, 0, -2, 1, 0, -1);
+const Mat SOBEL_Y = (Mat_<char>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
 
 // Assuming kernel is odd and square
 Mat convolve(Mat image, Mat kernel) {
@@ -17,16 +17,15 @@ Mat convolve(Mat image, Mat kernel) {
   int result_height = height - half_kernel_size * 2;
   int result_width = width - half_kernel_size * 2;
 
-  display(image);
-  Mat result = Mat(result_height, result_width, image.type());;
+  Mat result = Mat(result_height, result_width, image.type(), Scalar(0));;
 
   for(int r = half_kernel_size; r <= result_height; r++) {
     for(int c = half_kernel_size; c <= result_width; c++) {
       for(int k_r = 0; k_r < kernel_size; k_r++) {
         for(int k_c = 0; k_c < kernel_size; k_c++) {
-          result.at<float>(r - half_kernel_size, c - half_kernel_size) += (
-              image.at<float>(r + half_kernel_size - k_r, c + half_kernel_size - k_c) *
-              kernel.at<float>(k_r, k_c));
+          result.at<char>(r - half_kernel_size, c - half_kernel_size) += (
+              image.at<char>(r + half_kernel_size - k_r, c + half_kernel_size - k_c) *
+              kernel.at<char>(k_r, k_c));
         }
       }
     }
@@ -59,9 +58,7 @@ Mat convolve_color(Mat image, Mat kernel) {
         0);
 
     Mat result = convolve(padded_channel, kernel);
-    display(result);
     dst_channels.push_back(result);
-    cout << "here" << endl;
   }
 
   merge(dst_channels, result);
@@ -118,3 +115,7 @@ int main(int argc, char** argv) {
   // Harris with scale?
   return 0;
 }
+
+// TODO: Fix memory issue in convolve_color with vector push_back
+// TODO: Write code to convole with linearly separable filters
+// TODO: Convert image to grayscale before calculating gradient
