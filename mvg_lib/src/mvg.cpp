@@ -316,6 +316,7 @@ void write(char* nameOfOriginal, Mat image, std::string suffix) {
 
 void display(Mat image) {
   namedWindow("Display Image", WINDOW_AUTOSIZE );
+  image.convertTo(image, CV_8U);
   imshow("Display Image", image);
   waitKey(0);
 }
