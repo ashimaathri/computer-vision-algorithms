@@ -3,8 +3,12 @@
 using namespace cv;
 using namespace std;
 
-const Mat SOBEL_X = (Mat_<char>(3, 3) << 1, 0, -1, 2, 0, -2, 1, 0, -1);
-const Mat SOBEL_Y = (Mat_<char>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
+const Mat SOBEL_X = (Mat_<float>(3, 3) << 1, 0, -1, 2, 0, -2, 1, 0, -1);
+const Mat SOBEL_Y = (Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
+
+Mat construct_box_filter(int size) {
+  return Mat(size, size, CV_32FC1, Scalar(1.0 / (size * size)));
+}
 
 // Assuming kernel is odd and square
 Mat convolve(Mat image, Mat kernel) {
@@ -12,20 +16,33 @@ Mat convolve(Mat image, Mat kernel) {
 
   int kernel_size = kernel.size().width;
   int half_kernel_size = kernel_size / 2;
-  int height = image.size().height;
-  int width = image.size().width;
+
+  Mat padded;
+
+  copyMakeBorder(
+      image,
+      padded,
+      half_kernel_size,
+      half_kernel_size,
+      half_kernel_size,
+      half_kernel_size,
+      BORDER_REPLICATE,
+      0);
+
+  int height = padded.size().height;
+  int width = padded.size().width;
   int result_height = height - half_kernel_size * 2;
   int result_width = width - half_kernel_size * 2;
 
-  Mat result = Mat(result_height, result_width, image.type(), Scalar(0));;
+  Mat result = Mat(result_height, result_width, padded.type(), Scalar(0));;
 
   for(int r = half_kernel_size; r <= result_height; r++) {
     for(int c = half_kernel_size; c <= result_width; c++) {
       for(int k_r = 0; k_r < kernel_size; k_r++) {
         for(int k_c = 0; k_c < kernel_size; k_c++) {
-          result.at<char>(r - half_kernel_size, c - half_kernel_size) += (
-              image.at<char>(r + half_kernel_size - k_r, c + half_kernel_size - k_c) *
-              kernel.at<char>(k_r, k_c));
+          result.at<uint8_t>(r - half_kernel_size, c - half_kernel_size) += (
+              padded.at<uint8_t>(r + half_kernel_size - k_r, c + half_kernel_size - k_c) *
+              kernel.at<float>(k_r, k_c));
         }
       }
     }
@@ -40,24 +57,10 @@ Mat convolve_color(Mat image, Mat kernel) {
   Mat result, src_channels[3];
   vector<Mat> dst_channels;
 
-  int pad_length = kernel.size().width / 2;
-
   split(image, src_channels);
 
   for(int i = 0; i < 3; i++) {
-    Mat padded_channel;
-
-    copyMakeBorder(
-        src_channels[i],
-        padded_channel,
-        pad_length,
-        pad_length,
-        pad_length,
-        pad_length,
-        BORDER_REPLICATE,
-        0);
-
-    Mat result = convolve(padded_channel, kernel);
+    Mat result = convolve(src_channels[i], kernel);
     dst_channels.push_back(result);
   }
 
@@ -99,23 +102,54 @@ int main(int argc, char** argv) {
 
   Mat image = imread(argv[1], 1);
 
-  //Mat test_image = construct_color_image();
-  //Mat kernel = (Mat_<float>(3, 3) << 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0);
+  Mat grayscale_img;
+  cvtColor(image, grayscale_img, COLOR_RGB2GRAY);
 
-  // Get gradient in both directions using sobel 
-  Mat gradient_x = convolve_color(image, SOBEL_X);
-  //Mat gradient_y = convolve_color(image, SOBEL_Y);
+  Mat Ix = convolve(grayscale_img, SOBEL_X);
+  Mat Iy = convolve(grayscale_img, SOBEL_Y);
 
-  display(gradient_x);
+  Mat Ixx, Iyy, Ixy;
 
-  // Try w = box filter (maybe try it with Gaussian filter too?)
-  // Construct M
-  // Get trace and determinant of M
-  // Find R and compare against threshold
-  // Harris with scale?
+  multiply(Ix, Ix, Ixx);
+  multiply(Ix, Iy, Ixy);
+  multiply(Iy, Iy, Iyy);
+
+  // What's a good value for the size of the filter?
+  Mat box_filter = construct_box_filter(5);
+
+  Ixx = convolve(Ixx, box_filter);
+  Ixy = convolve(Ixy, box_filter);
+  Iyy = convolve(Iyy, box_filter);
+
+  float k = 0.05;
+  float threshold = 0.01;
+  Size size = Ixx.size();
+  vector<KeyPoint> corners;
+
+  for(int r = 0; r < size.height; r++) {
+    for(int c = 0; c < size.width; c++) {
+      int M11 = Ixx.at<uint8_t>(r, c);
+      int M12 = Ixy.at<uint8_t>(r, c);
+      int M22 = Iyy.at<uint8_t>(r, c);
+      int determinant = M11 * M22 - M12 * M12;
+      int trace = M11 + M22;
+      float R = determinant - k * trace * trace;
+      if(R > threshold) {
+        corners.push_back(KeyPoint(Point2f(r, c), 1.f));
+      }
+    }
+  }
+
+  Mat result;
+  cout << corners.size() << endl;
+  drawKeypoints(image, corners, result, Scalar(0));
+
+  display(result);
+
   return 0;
 }
 
-// TODO: Fix memory issue in convolve_color with vector push_back
+// TODO: Gradient can be negative, can't use unsigned int
+// Haar for scale?
 // TODO: Write code to convole with linearly separable filters
-// TODO: Convert image to grayscale before calculating gradient
+// TODO: Harris with scale?
