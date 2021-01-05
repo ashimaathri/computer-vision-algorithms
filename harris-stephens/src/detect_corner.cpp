@@ -11,7 +11,7 @@ Mat construct_box_filter(int size) {
 }
 
 // Assuming kernel is odd and square
-Mat convolve(Mat image, Mat kernel) {
+Mat convolve(Mat image, Mat kernel, int type) {
   assert(image.channels() == 1);
 
   int kernel_size = kernel.size().width;
@@ -34,16 +34,27 @@ Mat convolve(Mat image, Mat kernel) {
   int result_height = height - half_kernel_size * 2;
   int result_width = width - half_kernel_size * 2;
 
-  Mat result = Mat(result_height, result_width, padded.type(), Scalar(0));;
+  Mat result = Mat(result_height, result_width, type, Scalar(0));;
 
   for(int r = half_kernel_size; r <= result_height; r++) {
     for(int c = half_kernel_size; c <= result_width; c++) {
+      double value = 0;
       for(int k_r = 0; k_r < kernel_size; k_r++) {
         for(int k_c = 0; k_c < kernel_size; k_c++) {
-          result.at<uint8_t>(r - half_kernel_size, c - half_kernel_size) += (
+          value += (
               padded.at<uint8_t>(r + half_kernel_size - k_r, c + half_kernel_size - k_c) *
               kernel.at<float>(k_r, k_c));
         }
+      }
+      switch(type) {
+        case CV_32FC1:
+          result.at<float>(r - half_kernel_size, c - half_kernel_size) = value;
+          break;
+        case CV_64FC1:
+          result.at<double>(r - half_kernel_size, c - half_kernel_size) = value;
+          break;
+        default:
+          result.at<uint8_t>(r - half_kernel_size, c - half_kernel_size) = value;
       }
     }
   }
@@ -60,7 +71,7 @@ Mat convolve_color(Mat image, Mat kernel) {
   split(image, src_channels);
 
   for(int i = 0; i < 3; i++) {
-    Mat result = convolve(src_channels[i], kernel);
+    Mat result = convolve(src_channels[i], kernel, src_channels[i].type());
     dst_channels.push_back(result);
   }
 
@@ -105,8 +116,8 @@ int main(int argc, char** argv) {
   Mat grayscale_img;
   cvtColor(image, grayscale_img, COLOR_RGB2GRAY);
 
-  Mat Ix = convolve(grayscale_img, SOBEL_X);
-  Mat Iy = convolve(grayscale_img, SOBEL_Y);
+  Mat Ix = convolve(grayscale_img, SOBEL_X, CV_32FC1);
+  Mat Iy = convolve(grayscale_img, SOBEL_Y, CV_32FC1);
 
   Mat Ixx, Iyy, Ixy;
 
@@ -117,25 +128,27 @@ int main(int argc, char** argv) {
   // What's a good value for the size of the filter?
   Mat box_filter = construct_box_filter(5);
 
-  Ixx = convolve(Ixx, box_filter);
-  Ixy = convolve(Ixy, box_filter);
-  Iyy = convolve(Iyy, box_filter);
+  Ixx = convolve(Ixx, box_filter, CV_32FC1);
+  Ixy = convolve(Ixy, box_filter, CV_32FC1);
+  Iyy = convolve(Iyy, box_filter, CV_32FC1);
 
-  float k = 0.05;
-  float threshold = 0.01;
+  float k = 0.1;
+  float threshold = 1000;
   Size size = Ixx.size();
   vector<KeyPoint> corners;
 
   for(int r = 0; r < size.height; r++) {
     for(int c = 0; c < size.width; c++) {
-      int M11 = Ixx.at<uint8_t>(r, c);
-      int M12 = Ixy.at<uint8_t>(r, c);
-      int M22 = Iyy.at<uint8_t>(r, c);
-      int determinant = M11 * M22 - M12 * M12;
-      int trace = M11 + M22;
+      float M11 = Ixx.at<float>(r, c);
+      float M12 = Ixy.at<float>(r, c);
+      float M22 = Iyy.at<float>(r, c);
+      float determinant = M11 * M22 - M12 * M12;
+      float trace = M11 + M22;
       float R = determinant - k * trace * trace;
       if(R > threshold) {
-        corners.push_back(KeyPoint(Point2f(r, c), 1.f));
+        cout << R << endl;
+        // x = c, y = r
+        corners.push_back(KeyPoint(Point2f(c, r), 1.f));
       }
     }
   }
@@ -149,7 +162,6 @@ int main(int argc, char** argv) {
   return 0;
 }
 
-// TODO: Gradient can be negative, can't use unsigned int
 // Haar for scale?
 // TODO: Write code to convole with linearly separable filters
 // TODO: Harris with scale?
