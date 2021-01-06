@@ -101,6 +101,8 @@ void print_color_image(Mat image) {
   }
 }
 
+// OpenCV harris for comparison of results
+// Both algos give exactly the same results
 void real_harris(Mat image) {
   Mat grayscale_img, normalized;
   float k = 0.05;
@@ -123,13 +125,12 @@ void real_harris(Mat image) {
 }
 
 int main(int argc, char** argv) {
-  if (argc != 2) {
-    printf("usage: detect_corner <Image>\n");
+  if (argc != 4) {
+    printf("usage: detect_corner <Image> <k> <threshold>\n");
     return -1;
   }
 
   Mat image = imread(argv[1], 1);
-  //real_harris(image);
 
   Mat grayscale_img;
   cvtColor(image, grayscale_img, COLOR_RGB2GRAY);
@@ -143,28 +144,15 @@ int main(int argc, char** argv) {
   multiply(Ix, Iy, Ixy);
   multiply(Iy, Iy, Iyy);
 
-  boxFilter(Ixx, Ixx, Ixx.depth(), Size(2, 2), Point(-1, -1), true, BORDER_DEFAULT);
-  boxFilter(Ixy, Ixy, Ixy.depth(), Size(2, 2), Point(-1, -1), true, BORDER_DEFAULT);
-  boxFilter(Iyy, Iyy, Iyy.depth(), Size(2, 2), Point(-1, -1), true, BORDER_DEFAULT);
+  boxFilter(Ixx, Ixx, Ixx.depth(), Size(2, 2), Point(-1, -1), true,
+      BORDER_DEFAULT);
+  boxFilter(Ixy, Ixy, Ixy.depth(), Size(2, 2), Point(-1, -1), true,
+      BORDER_DEFAULT);
+  boxFilter(Iyy, Iyy, Iyy.depth(), Size(2, 2), Point(-1, -1), true,
+      BORDER_DEFAULT);
 
-  //TODO: Take these as input params
-  /*
-   * Pair 1
-  float k = 0.064;
-  float threshold = 67;
-  */
-  /*
-   * Checkerboard
-  float k = 0.03;
-  float threshold = 120;
-  */
-  /*
-   * Truck 1
-  float k = 0.08;
-  float threshold = 109;
-  */
-  float k = 0.072;
-  float threshold = 109;
+  float k = atof(argv[2]);
+  float threshold = atof(argv[3]);
   Size size = Ixx.size();
   Mat R = Mat(image.size(), CV_32FC1);
 
@@ -178,6 +166,7 @@ int main(int argc, char** argv) {
       R.at<float>(r, c) = determinant - (k * trace * trace);
     }
   }
+
   Mat R_normalized;
   normalize(R, R_normalized, 0, 255, NORM_MINMAX, CV_32FC1, Mat());
   vector<KeyPoint> corners;
@@ -190,11 +179,11 @@ int main(int argc, char** argv) {
   }
 
   Mat result;
-  cout << corners.size() << endl;
   drawKeypoints(image, corners, result, Scalar(50));
 
-  display(result);
-  write(argv[1], result);
+  cout << "Found " << corners.size() << " corners" << endl;
+
+  write(argv[1], result, "-harris-corners");
 
   return 0;
 }
