@@ -103,7 +103,7 @@ void print_color_image(Mat image) {
 
 // OpenCV harris for comparison of results
 // Both algos give exactly the same results
-void real_harris(Mat image) {
+void opencv_harris(Mat image) {
   Mat grayscale_img, normalized;
   float k = 0.05;
   float R = 151;
@@ -124,14 +124,7 @@ void real_harris(Mat image) {
   display(result);
 }
 
-int main(int argc, char** argv) {
-  if (argc != 4) {
-    printf("usage: detect_corner <Image> <k> <threshold>\n");
-    return -1;
-  }
-
-  Mat image = imread(argv[1], 1);
-
+vector<KeyPoint> harris_stephens_corners(Mat image, float k, float threshold) {
   Mat grayscale_img;
   cvtColor(image, grayscale_img, COLOR_RGB2GRAY);
 
@@ -151,8 +144,6 @@ int main(int argc, char** argv) {
   boxFilter(Iyy, Iyy, Iyy.depth(), Size(2, 2), Point(-1, -1), true,
       BORDER_DEFAULT);
 
-  float k = atof(argv[2]);
-  float threshold = atof(argv[3]);
   Size size = Ixx.size();
   Mat R = Mat(image.size(), CV_32FC1);
 
@@ -169,6 +160,7 @@ int main(int argc, char** argv) {
 
   Mat R_normalized;
   normalize(R, R_normalized, 0, 255, NORM_MINMAX, CV_32FC1, Mat());
+
   vector<KeyPoint> corners;
   for(int i = 0; i < R_normalized.rows; i++) {
     for(int j = 0; j < R_normalized.cols; j++) {
@@ -178,12 +170,28 @@ int main(int argc, char** argv) {
     }
   }
 
+  return corners;
+}
+
+int main(int argc, char** argv) {
+  if (argc != 5) {
+    printf("usage: match_features <Image1> <Image2> <k> <threshold>\n");
+    return -1;
+  }
+
+  Mat image1 = imread(argv[1], 1);
+  Mat image2 = imread(argv[2], 1);
+
+  float k = atof(argv[3]);
+  float threshold = atof(argv[4]);
+  vector<KeyPoint> corners1 = harris_stephens_corners(image1, k, threshold);
+  vector<KeyPoint> corners2 = harris_stephens_corners(image2, k, threshold);
+
   Mat result;
-  drawKeypoints(image, corners, result, Scalar(50));
-
-  cout << "Found " << corners.size() << " corners" << endl;
-
+  drawKeypoints(image1, corners1, result, Scalar(50));
   write(argv[1], result, "-harris-corners");
+  drawKeypoints(image2, corners2, result, Scalar(50));
+  write(argv[2], result, "-harris-corners");
 
   return 0;
 }
