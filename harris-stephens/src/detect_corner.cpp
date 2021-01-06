@@ -6,10 +6,6 @@ using namespace std;
 const Mat SOBEL_X = (Mat_<float>(3, 3) << 1, 0, -1, 2, 0, -2, 1, 0, -1);
 const Mat SOBEL_Y = (Mat_<float>(3, 3) << 1, 2, 1, 0, 0, 0, -1, -2, -1);
 
-Mat construct_box_filter(int size) {
-  return Mat(size, size, CV_32FC1, Scalar(1.0 / (size * size)));
-}
-
 // Assuming kernel is odd and square
 Mat convolve(Mat image, Mat kernel, int type) {
   assert(image.channels() == 1);
@@ -26,7 +22,7 @@ Mat convolve(Mat image, Mat kernel, int type) {
       half_kernel_size,
       half_kernel_size,
       half_kernel_size,
-      BORDER_REPLICATE,
+      BORDER_DEFAULT,
       0);
 
   int height = padded.size().height;
@@ -105,6 +101,27 @@ void print_color_image(Mat image) {
   }
 }
 
+void real_harris(Mat image) {
+  Mat grayscale_img, normalized;
+  float k = 0.05;
+  float R = 151;
+  cvtColor(image, grayscale_img, COLOR_RGB2GRAY);
+  Mat result = Mat::zeros(grayscale_img.size(), CV_32FC1);
+  cornerHarris(grayscale_img, result, 2, 3, k);
+  normalize(result, normalized, 0, 255, NORM_MINMAX, CV_32FC1, Mat());
+  vector<KeyPoint> corners;
+  for(int i = 0; i < normalized.rows; i++) {
+    for(int j = 0; j < normalized.cols; j++) {
+      if(normalized.at<float>(i,j) > R) {
+        corners.push_back(KeyPoint(Point2f(j, i), 1.f));
+      }
+    }
+  }
+  cout << corners.size() << endl;
+  drawKeypoints(image, corners, result, Scalar(0));
+  display(result);
+}
+
 int main(int argc, char** argv) {
   if (argc != 2) {
     printf("usage: detect_corner <Image>\n");
@@ -112,6 +129,7 @@ int main(int argc, char** argv) {
   }
 
   Mat image = imread(argv[1], 1);
+  //real_harris(image);
 
   Mat grayscale_img;
   cvtColor(image, grayscale_img, COLOR_RGB2GRAY);
@@ -125,17 +143,30 @@ int main(int argc, char** argv) {
   multiply(Ix, Iy, Ixy);
   multiply(Iy, Iy, Iyy);
 
-  // What's a good value for the size of the filter?
-  Mat box_filter = construct_box_filter(5);
+  boxFilter(Ixx, Ixx, Ixx.depth(), Size(2, 2), Point(-1, -1), true, BORDER_DEFAULT);
+  boxFilter(Ixy, Ixy, Ixy.depth(), Size(2, 2), Point(-1, -1), true, BORDER_DEFAULT);
+  boxFilter(Iyy, Iyy, Iyy.depth(), Size(2, 2), Point(-1, -1), true, BORDER_DEFAULT);
 
-  Ixx = convolve(Ixx, box_filter, CV_32FC1);
-  Ixy = convolve(Ixy, box_filter, CV_32FC1);
-  Iyy = convolve(Iyy, box_filter, CV_32FC1);
-
-  float k = 0.1;
-  float threshold = 1000;
+  //TODO: Take these as input params
+  /*
+   * Pair 1
+  float k = 0.064;
+  float threshold = 67;
+  */
+  /*
+   * Checkerboard
+  float k = 0.03;
+  float threshold = 120;
+  */
+  /*
+   * Truck 1
+  float k = 0.08;
+  float threshold = 109;
+  */
+  float k = 0.072;
+  float threshold = 109;
   Size size = Ixx.size();
-  vector<KeyPoint> corners;
+  Mat R = Mat(image.size(), CV_32FC1);
 
   for(int r = 0; r < size.height; r++) {
     for(int c = 0; c < size.width; c++) {
@@ -144,24 +175,26 @@ int main(int argc, char** argv) {
       float M22 = Iyy.at<float>(r, c);
       float determinant = M11 * M22 - M12 * M12;
       float trace = M11 + M22;
-      float R = determinant - k * trace * trace;
-      if(R > threshold) {
-        cout << R << endl;
-        // x = c, y = r
-        corners.push_back(KeyPoint(Point2f(c, r), 1.f));
+      R.at<float>(r, c) = determinant - (k * trace * trace);
+    }
+  }
+  Mat R_normalized;
+  normalize(R, R_normalized, 0, 255, NORM_MINMAX, CV_32FC1, Mat());
+  vector<KeyPoint> corners;
+  for(int i = 0; i < R_normalized.rows; i++) {
+    for(int j = 0; j < R_normalized.cols; j++) {
+      if(R_normalized.at<float>(i,j) > threshold) {
+        corners.push_back(KeyPoint(Point2f(j, i), 1.f));
       }
     }
   }
 
   Mat result;
   cout << corners.size() << endl;
-  drawKeypoints(image, corners, result, Scalar(0));
+  drawKeypoints(image, corners, result, Scalar(50));
 
   display(result);
+  write(argv[1], result);
 
   return 0;
 }
-
-// Haar for scale?
-// TODO: Write code to convole with linearly separable filters
-// TODO: Harris with scale?
