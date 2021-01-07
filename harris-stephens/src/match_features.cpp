@@ -173,6 +173,38 @@ vector<KeyPoint> harris_stephens_corners(Mat image, float k, float threshold) {
   return corners;
 }
 
+Mat create_composite_image(Mat image1, Mat image2) {
+  assert(image1.rows == image2.rows && image1.cols == image2.cols);
+  Mat composite;
+  hconcat(image1, image2, composite);
+  return composite;
+}
+
+vector<tuple<KeyPoint, KeyPoint>> get_matches_ssd(
+    Mat image1,
+    vector<KeyPoint> corners1,
+    Mat image2,
+    vector<KeyPoint> corners2) {
+  vector<tuple<KeyPoint, KeyPoint>> matches;
+
+  for(auto it1 = corners1.begin(); it1 < corners1.end(); it1++) {
+    float min_distance = numeric_limits<float>::infinity();
+    tuple<KeyPoint, KeyPoint> best_pair;
+    for(auto it2 = corners2.begin(); it2 < corners2.end(); it2++) {
+      Vec3b diff;
+      diff = image1.at<Vec3b>((*it1).pt.x, (*it1).pt.y) - image2.at<Vec3b>((*it2).pt.x, (*it2).pt.y);
+      float ssd = (diff[0] * diff[0]) + (diff[1] * diff[1]) + (diff[2] * diff[2]);
+      if(ssd < min_distance) {
+        min_distance = ssd;
+        best_pair = make_tuple(*it1, *it2);
+      }
+    }
+    matches.push_back(best_pair);
+  }
+  cout << matches.size() << endl;
+  return matches;
+}
+
 int main(int argc, char** argv) {
   if (argc != 5) {
     printf("usage: match_features <Image1> <Image2> <k> <threshold>\n");
@@ -192,6 +224,19 @@ int main(int argc, char** argv) {
   write(argv[1], result, "-harris-corners");
   drawKeypoints(image2, corners2, result, Scalar(50));
   write(argv[2], result, "-harris-corners");
+
+  // Draw line between matches
+  Mat composite_image = create_composite_image(image1, image2);
+  vector<tuple<KeyPoint, KeyPoint>> matches = get_matches_ssd(image1, corners1, image2, corners2);
+
+  Point2f offset = Point2f(image1.cols, 0);
+  for(auto it = matches.begin(); it < matches.end(); it++) {
+    KeyPoint kp1 = get<0>(*it);
+    KeyPoint kp2 = get<1>(*it);
+    line(composite_image, kp1.pt, kp2.pt + offset, Scalar(30, 0, 30), 2, LINE_8);
+  }
+
+  display(composite_image);
 
   return 0;
 }
