@@ -127,10 +127,10 @@ void opencv_harris(Mat image) {
 Mat non_maximal_suppression(Mat values) {
   Mat local_maximas = values.clone();
 
-  int size = 20;
+  int size = 10;
 
-  for(int r = 0; r < local_maximas.rows - size; r += size) {
-    for(int c = 0; c < local_maximas.cols - size; c += size) {
+  for(int r = 0; r < local_maximas.rows - size; r++) {
+    for(int c = 0; c < local_maximas.cols - size; c++) {
       float max_value = -numeric_limits<float>::infinity();
       int r_offset, c_offset;
       for(int i = 0; i < size; i++) {
@@ -200,6 +200,7 @@ vector<KeyPoint> harris_stephens_corners(Mat image, float k, float threshold) {
     }
   }
 
+  cout << "Found " << corners.size() << " corners" << endl;
   return corners;
 }
 
@@ -235,6 +236,7 @@ bool sort_by_score(
   return get<0>(a) < get<0>(b);
 }
 
+// This is not a very great matcher
 vector<tuple<KeyPoint, KeyPoint>> get_matches(
     Mat image1,
     vector<KeyPoint> corners1,
@@ -261,7 +263,7 @@ vector<tuple<KeyPoint, KeyPoint>> get_matches(
   sort(matches.begin(), matches.end(), sort_by_score);
 
   int i = 0;
-  int num_matches = 50;
+  int num_matches = 20;
   vector<tuple<KeyPoint, KeyPoint>> top_matches;
   for(auto it = matches.begin(); it < matches.end() && i < num_matches; it++, i++) {
     top_matches.push_back(make_tuple(get<1>(*it), get<2>(*it)));
@@ -292,7 +294,6 @@ int main(int argc, char** argv) {
   drawKeypoints(image2, corners2, result, Scalar(50));
   write(argv[2], result, "-harris-corners");
 
-  // Draw line between matches
   Mat composite_image = create_composite_image(image1, image2);
   vector<tuple<KeyPoint, KeyPoint>> matches = get_matches(grayscale_img1, corners1, grayscale_img2, corners2, &ssd);
 
