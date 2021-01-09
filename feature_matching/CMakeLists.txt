@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 2.8)
+project(match_features)
+find_package(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/../mvg_lib/include include)
+add_executable(match_features src/match_features.cpp)
+target_link_libraries(match_features ${OpenCV_LIBS} ${CMAKE_SOURCE_DIR}/../mvg_lib/libMVG.so)
+set(OPENCV_ENABLE_NONFREE ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
