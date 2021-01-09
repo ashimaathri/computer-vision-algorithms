@@ -1,0 +1,2 @@
+Implement scale space harris using haar.
+How to handle images of different sizes?
