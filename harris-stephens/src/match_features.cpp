@@ -211,23 +211,24 @@ Mat create_composite_image(Mat image1, Mat image2) {
   return composite;
 }
 
-// TODO: handle case where points are at the borders of the image
 float ssd(Mat image1, Point2f point1, Mat image2, Point2f point2) {
   assert(image1.channels() == 1 && image2.channels() == 1);
 
   // Patch size = half_patch_size * 2 + 1
   int half_patch_size = 10;
   float result = 0;
+  int num_elements = 0;
 
-  for(int i = -half_patch_size; i <= half_patch_size; i++) {
-    for(int j = -half_patch_size; j <= half_patch_size; j++) {
-      float diff = (image1.at<char>(point1.x + i, point1.y + j) -
-          image1.at<char>(point2.x + i, point2.y + j));
-      result += diff * diff;
+  for(int i = -half_patch_size; i <= half_patch_size && point1.y + i < image1.rows && point2.y + i < image2.rows; i++) {
+    for(int j = -half_patch_size; j <= half_patch_size && point1.x + j < image1.cols && point2.x + j < image2.cols; j++) {
+      int diff = image1.at<uint8_t>(point1.y + i, point1.x + j) -
+          image2.at<uint8_t>(point2.y + i, point2.x + j);
+      result += abs(diff); // abs is better than square
+      num_elements++;
     }
   }
 
-  return result;
+  return result / num_elements;
 }
 
 bool sort_by_score(
@@ -236,7 +237,6 @@ bool sort_by_score(
   return get<0>(a) < get<0>(b);
 }
 
-// This is not a very great matcher
 vector<tuple<KeyPoint, KeyPoint>> get_matches(
     Mat image1,
     vector<KeyPoint> corners1,
@@ -263,7 +263,7 @@ vector<tuple<KeyPoint, KeyPoint>> get_matches(
   sort(matches.begin(), matches.end(), sort_by_score);
 
   int i = 0;
-  int num_matches = 20;
+  int num_matches = 100;
   vector<tuple<KeyPoint, KeyPoint>> top_matches;
   for(auto it = matches.begin(); it < matches.end() && i < num_matches; it++, i++) {
     top_matches.push_back(make_tuple(get<1>(*it), get<2>(*it)));
@@ -304,7 +304,9 @@ int main(int argc, char** argv) {
     line(composite_image, kp1.pt, kp2.pt + offset, Scalar(255), 2, LINE_8);
   }
 
+  char composite_name[8] = "top-100";
   display(composite_image);
+  write(composite_name, composite_image, "-harris-corner-matches");
 
   return 0;
 }
