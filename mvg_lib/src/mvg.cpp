@@ -204,32 +204,32 @@ Mat readHomogeneousCoordinates() {
 Mat computeHomography(std::vector <Point2f> from, std::vector <Point2f> to) {
   int numPoints = from.size();
 
-  assert(to.size() == numPoints);
-  assert(numPoints % 4 == 0);
+  bool isMinimal = (numPoints / 4) > 0;
+  bool areNumCorrespondencesEqual = (to.size() == numPoints);
+  assert(isMinimal && areNumCorrespondencesEqual);
 
-  int numRows = numPoints * 2;
   int numCols = 9;
+  int numRows = numPoints * 2;
+  Mat result;
 
-  float linearSystem[numRows][numCols];
+  for(auto it_from = from.begin(), it_to = to.begin();
+      it_from < from.end();
+      it_from++, it_to++) {
+    Mat row;
 
-  for(int i = 0; i < numPoints / 4; i += 4) {
-    const float subSystem[8][9] = {
-      {-from[i].x, -from[i].y, -1, 0, 0, 0, from[i].x * to[i].x, from[i].y * to[i].x, to[i].x},
-      {0, 0, 0, -from[i].x, -from[i].y, -1, from[i].x * to[i].y, from[i].y * to[i].y, to[i].y},
-      {-from[i + 1].x, -from[i + 1].y, -1, 0, 0, 0, from[i + 1].x * to[i + 1].x, from[i + 1].y * to[i + 1].x, to[i + 1].x},
-      {0, 0, 0, -from[i + 1].x, -from[i + 1].y, -1, from[i + 1].x * to[i + 1].y, from[i + 1].y * to[i + 1].y, to[i + 1].y},
-      {-from[i + 2].x, -from[i + 2].y, -1, 0, 0, 0, from[i + 2].x * to[i + 2].x, from[i + 2].y * to[i + 2].x, to[i + 2].x},
-      {0, 0, 0, -from[i + 2].x, -from[i + 2].y, -1, from[i + 2].x * to[i + 2].y, from[i + 2].y * to[i + 2].y, to[i + 2].y},
-      {-from[i + 3].x, -from[i + 3].y, -1, 0, 0, 0, from[i + 3].x * to[i + 3].x, from[i + 3].y * to[i + 3].x, to[i + 3].x},
-      {0, 0, 0, -from[i + 3].x, -from[i + 3].y, -1, from[i + 3].x * to[i + 3].y, from[i + 3].y * to[i + 3].y, to[i + 3].y},
-    };
-    int sizeOfSubMatrix = 8 * 9 * sizeof(float);
-    memcpy(linearSystem + i * sizeOfSubMatrix, subSystem, sizeOfSubMatrix);
+    row = (Mat_<float>(1, numCols) << -(*it_from).x, -(*it_from).y, -1,
+        0, 0, 0, (*it_from).x * (*it_to).x, (*it_from).y * (*it_to).x,
+        (*it_to).x);
+    result.push_back(row);
+
+    row = (Mat_<float>(1, numCols) << 0, 0, 0, -(*it_from).x, -(*it_from).y,
+        -1, (*it_from).x * (*it_to).y, (*it_from).y * (*it_to).y, (*it_to).y);
+    result.push_back(row);
   }
 
   Mat W, U, Vt;
   cv::SVDecomp(
-      Mat(numRows, numCols, CV_32FC1, (void*)&linearSystem),
+      result,
       W,
       U,
       Vt,
