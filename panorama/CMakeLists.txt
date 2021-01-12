@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 2.8)
+project(panorama)
+find_package(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/../mvg_lib/include include)
+add_executable(panorama src/panorama.cpp)
+target_link_libraries(panorama ${OpenCV_LIBS} ${CMAKE_SOURCE_DIR}/../mvg_lib/libMVG.so)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
