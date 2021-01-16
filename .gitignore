@@ -19,3 +19,4 @@ ProjectiveDistortion
 ApplyHomography
 libMVG.so
 match_features
+panoramify
