@@ -214,38 +214,95 @@ bool sort_by_score(
   return get<0>(a) < get<0>(b);
 }
 
-vector<tuple<KeyPoint, KeyPoint>> get_matches(
+bool sortByScore(
+    tuple <int, int, float> &a,
+    tuple <int, int, float> &b) {
+  return get<2>(a) < get<2>(b);
+}
+
+vector<tuple<KeyPoint, KeyPoint>> getMatches(
     Mat image1,
     vector<KeyPoint> corners1,
     Mat image2,
     vector<KeyPoint> corners2,
     float(*distance)(Mat, Point2f, Mat, Point2f)) {
-  vector<tuple<float, KeyPoint, KeyPoint>> matches;
+  bool swapped = false;
+  Mat keyImage, matchImage;
+  vector<KeyPoint> keyCorners, matchCorners; 
 
-  for(auto it1 = corners1.begin(); it1 < corners1.end(); it1++) {
-    float min_distance = numeric_limits<float>::infinity();
-    tuple<float, KeyPoint, KeyPoint> best_pair;
-    auto best_position = corners2.begin();
-    for(auto it2 = corners2.begin(); it2 < corners2.end(); it2++) {
-      float ssd = distance(image1, (*it1).pt, image2, (*it2).pt);
-      if(ssd < min_distance) {
-        min_distance = ssd;
-        best_pair = make_tuple(min_distance, *it1, *it2);
-        best_position = it2;
+  if(corners1.size() < corners2.size()) {
+    keyImage = image1;
+    matchImage = image2;
+    keyCorners = corners1;
+    matchCorners = corners2;
+  } else {
+    swapped = true;
+    keyImage = image2;
+    matchImage = image1;
+    keyCorners = corners2;
+    matchCorners = corners1;
+  }
+
+  map<int, tuple<int, float>> matches;
+  vector<bool> visited(keyCorners.size(), false);
+
+  for(int i = 0; i < keyCorners.size(); i++) {
+    if(visited.at(i)) {
+      continue;
+    }
+    int bestPosition = 0;
+    float bestScore = numeric_limits<float>::infinity();
+
+    KeyPoint keyCorner = keyCorners.at(i);
+
+    for(int j = 0; j < matchCorners.size(); j++) {
+      float score = distance(keyImage, keyCorner.pt, matchImage, matchCorners.at(j).pt);
+
+      if(score < bestScore) {
+        bool matchNotTaken = (matches.find(j) == matches.end());
+        if(matchNotTaken || get<1>(matches[j]) > score) {
+          bestScore = score;
+          bestPosition = j;
+        }
       }
     }
-    corners2.erase(best_position);
-    matches.push_back(best_pair);
+
+    visited.at(i) = true;
+
+    bool matchNotTaken = (matches.find(bestPosition) == matches.end());
+
+    if(matchNotTaken) {
+      matches[bestPosition] = make_tuple(i, bestScore);
+    } else {
+      int next_i = get<0>(matches[bestPosition]);
+      matches[bestPosition] = make_tuple(i, bestScore);
+      i = next_i;
+      visited.at(i) = false;
+    }
   }
-  sort(matches.begin(), matches.end(), sort_by_score);
+  vector<tuple<int, int, float>> sortedMatches;
+
+  for(auto it = matches.begin(); it != matches.end(); it++) {
+    sortedMatches.push_back(make_tuple(it->first, get<0>(it->second), get<1>(it->second)));
+  }
+
+  sort(sortedMatches.begin(), sortedMatches.end(), sortByScore);
 
   int i = 0;
-  int num_matches = 100;
-  vector<tuple<KeyPoint, KeyPoint>> top_matches;
-  for(auto it = matches.begin(); it < matches.end() && i < num_matches; it++, i++) {
-    top_matches.push_back(make_tuple(get<1>(*it), get<2>(*it)));
+  int numMatches = 100;
+  vector<tuple<KeyPoint, KeyPoint>> topMatches;
+
+  if(swapped) {
+    for(auto it = sortedMatches.begin(); it < sortedMatches.end() && i < numMatches; it++, i++) {
+      topMatches.push_back(make_tuple(matchCorners.at(get<0>(*it)), keyCorners.at(get<1>(*it))));
+    }
+  } else {
+    for(auto it = sortedMatches.begin(); it < sortedMatches.end() && i < numMatches; it++, i++) {
+      topMatches.push_back(make_tuple(keyCorners.at(get<1>(*it)), matchCorners.at(get<0>(*it))));
+    }
   }
-  return top_matches;
+
+  return topMatches;
 }
 
 Mat solveConicSystem(vector<Mat> points) {
@@ -479,7 +536,7 @@ Mat computeHomography(std::vector <Point2f> from, std::vector <Point2f> to) {
       U,
       Vt,
       cv::SVD::FULL_UV);
-  return Vt(Range(numRows, numRows + 1), Range::all()).reshape(0, 3);
+  return Vt(Range(8, 9), Range::all()).reshape(0, 3);
 }
 
 Mat changePerspective(Mat image, Mat homography) {

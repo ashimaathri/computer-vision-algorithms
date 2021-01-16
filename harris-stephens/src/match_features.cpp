@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
   write(argv[2], result, "-harris-corners");
 
   Mat composite_image = create_composite_image(image1, image2);
-  vector<tuple<KeyPoint, KeyPoint>> matches = get_matches(grayscale_img1, corners1, grayscale_img2, corners2, &ssd);
+  vector<tuple<KeyPoint, KeyPoint>> matches = getMatches(grayscale_img1, corners1, grayscale_img2, corners2, &ssd);
 
   Point2f offset = Point2f(image1.cols, 0);
   for(auto it = matches.begin(); it < matches.end(); it++) {

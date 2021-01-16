@@ -33,7 +33,7 @@ Mat transformConic(Mat pointTransform, Mat conic);
 vector<KeyPoint> harris_stephens_corners(Mat image, float k, float threshold);
 Mat create_composite_image(Mat image1, Mat image2);
 float ssd(Mat image1, Point2f point1, Mat image2, Point2f point2);
-vector<tuple<KeyPoint, KeyPoint>> get_matches(
+vector<tuple<KeyPoint, KeyPoint>> getMatches(
     Mat image1,
     vector<KeyPoint> corners1,
     Mat image2,
