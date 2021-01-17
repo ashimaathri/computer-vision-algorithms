@@ -6,19 +6,19 @@ using namespace std;
 // Based on CDF of Chi-Square distribution
 int getNumIterations(float outlierFraction) {
   if(outlierFraction <= .05) {
-    return 3;
+    return 4;
   } else if(outlierFraction > .05 && outlierFraction <= .1) {
-    return 5;
+    return 7;
   } else if(outlierFraction > .1 && outlierFraction <= .2) {
-    return 9;
+    return 16;
   } else if(outlierFraction > .2 && outlierFraction <= .25) {
-    return 13;
+    return 24;
   } else if(outlierFraction > .25 && outlierFraction <= .3) {
-    return 17;
+    return 37;
   } else if(outlierFraction > .3 && outlierFraction <= .4) {
-    return 34;
+    return 97;
   } else if(outlierFraction > .4 && outlierFraction <= .5) {
-    return 72;
+    return 293;
   } else {
     return INT_MAX;
   }
@@ -85,26 +85,22 @@ Mat ransac(Mat srcImage, Mat dstImage, float k, float threshold) {
       srcCorners, dstGrayscale, dstCorners, &ssd);
 
   int i = 0;
-  int sampleSize = 4;
+  int sampleSize = 6;
   int numCorners = matches.size();
   int bestNumInliers = 0;
   vector<tuple<KeyPoint, KeyPoint>> bestInliers;
-  int numIterations = -numeric_limits<int>::infinity();
+  int numIterations = INT_MAX;
 
   while(true) {
     vector<Point2f> srcSample, dstSample;
-    vector<tuple<KeyPoint, KeyPoint>> selectedMatches;
 
     for(int i = 0; i < sampleSize; i++) {
       tuple<KeyPoint, KeyPoint> match = matches.at(rand() % numCorners);
       srcSample.push_back(get<0>(match).pt);
       dstSample.push_back(get<1>(match).pt);
-      selectedMatches.push_back(match);
     }
-    drawMatches(srcImage, dstImage, selectedMatches);
 
     Mat homography = computeHomography(dstSample, srcSample);
-    display(changePerspective(srcImage, homography));
 
     vector<tuple<KeyPoint, KeyPoint>> inliers = getInliers(homography, matches);
 
@@ -115,7 +111,9 @@ Mat ransac(Mat srcImage, Mat dstImage, float k, float threshold) {
 
     float outlierFraction = ((float)numCorners - (float)inliers.size()) / (float)numCorners;
 
-    int numIterations = getNumIterations(outlierFraction);
+    int adaptiveNumIterations = getNumIterations(outlierFraction);
+    numIterations = (adaptiveNumIterations < numIterations ? adaptiveNumIterations :
+        numIterations);
 
     if(++i > numIterations) {
       break;
