@@ -133,10 +133,11 @@ vector<uint8_t> makeDescriptor(Mat image, Point2f point) {
   assert(image.channels() == 3);
 
   int numElements = 0;
-  int windowSize = 15;
+  int windowSize = 7;
   vector<uint8_t> descriptor(image.channels() * windowSize * windowSize, 0);
 
   int halfWindowSize = windowSize / 2;
+  Vec3b centralIntensity = image.at<Vec3b>(point.y, point.x);
 
   for(int i = -halfWindowSize; i <= halfWindowSize; i++) {
     for(int j = -halfWindowSize; j <= halfWindowSize; j++) {
@@ -299,7 +300,7 @@ vector<tuple<KeyPoint, KeyPoint>> getMatches(
   sort(sortedMatches.begin(), sortedMatches.end(), sortByScore);
 
   int i = 0;
-  int numMatches = 100;
+  int numMatches = 30;
   vector<tuple<KeyPoint, KeyPoint>> topMatches;
 
   if(swapped) {

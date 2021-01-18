@@ -73,16 +73,11 @@ void drawMatches(Mat image1, Mat image2, vector<tuple<KeyPoint, KeyPoint>> match
 
 Mat ransac(Mat srcImage, Mat dstImage, float k, float threshold) {
   Mat homography;
-  Mat srcGrayscale, dstGrayscale;
 
-  cvtColor(srcImage, srcGrayscale, COLOR_RGB2GRAY);
-  cvtColor(dstImage, dstGrayscale, COLOR_RGB2GRAY);
+  vector<tuple<KeyPoint, vector<uint8_t>>> srcCorners = harris_stephens_corners(srcImage, k, threshold);
+  vector<tuple<KeyPoint, vector<uint8_t>>> dstCorners = harris_stephens_corners(dstImage, k, threshold);
 
-  vector<KeyPoint> srcCorners = harris_stephens_corners(srcGrayscale, k, threshold);
-  vector<KeyPoint> dstCorners = harris_stephens_corners(dstGrayscale, k, threshold);
-
-  vector<tuple<KeyPoint, KeyPoint>> matches = getMatches(srcGrayscale,
-      srcCorners, dstGrayscale, dstCorners, &ssd);
+  vector<tuple<KeyPoint, KeyPoint>> matches = getMatches(srcCorners, dstCorners);
 
   int i = 0;
   int sampleSize = 6;
@@ -93,11 +88,13 @@ Mat ransac(Mat srcImage, Mat dstImage, float k, float threshold) {
 
   while(true) {
     vector<Point2f> srcSample, dstSample;
+    vector<tuple<KeyPoint, KeyPoint>> matchesSubset;
 
     for(int i = 0; i < sampleSize; i++) {
       tuple<KeyPoint, KeyPoint> match = matches.at(rand() % numCorners);
       srcSample.push_back(get<0>(match).pt);
       dstSample.push_back(get<1>(match).pt);
+      matchesSubset.push_back(match);
     }
 
     Mat homography = computeHomography(dstSample, srcSample);
@@ -114,6 +111,7 @@ Mat ransac(Mat srcImage, Mat dstImage, float k, float threshold) {
     int adaptiveNumIterations = getNumIterations(outlierFraction);
     numIterations = (adaptiveNumIterations < numIterations ? adaptiveNumIterations :
         numIterations);
+    cout << numIterations - i << " iterations left" << endl;
 
     if(++i > numIterations) {
       break;
@@ -149,13 +147,9 @@ int main(int argc, char** argv) {
   float threshold = atof(argv[3]);
   vector<Mat> homographies;
 
-  for(int i = 0; i < numImages; i++) {
-    if(i == referenceImageIndex) {
-      homographies.push_back(Mat::eye(3, 3, CV_32FC1));
-    } else {
-      homographies.push_back(ransac(images.at(i), referenceImage, k, threshold));
-      display(changePerspective(images.at(i), homographies.at(i)));
-    }
+  for(int i = 0; i < numImages - 1; i++) {
+    homographies.push_back(ransac(images.at(i), images.at(i + 1), k, threshold));
+    display(changePerspective(images.at(i), homographies.at(i)));
   }
 
   return 0;
