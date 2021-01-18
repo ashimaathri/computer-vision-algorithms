@@ -34,23 +34,28 @@ int main(int argc, char** argv) {
 
   Mat image1 = imread(argv[1], 1);
   Mat image2 = imread(argv[2], 1);
-  Mat grayscale_img1, grayscale_img2;
-  cvtColor(image1, grayscale_img1, COLOR_RGB2GRAY);
-  cvtColor(image2, grayscale_img2, COLOR_RGB2GRAY);
 
   float k = atof(argv[3]);
   float threshold = atof(argv[4]);
-  vector<KeyPoint> corners1 = harris_stephens_corners(grayscale_img1, k, threshold);
-  vector<KeyPoint> corners2 = harris_stephens_corners(grayscale_img2, k, threshold);
+  vector<tuple<KeyPoint, vector<uint8_t>>> corners1 = harris_stephens_corners(image1, k, threshold);
+  vector<tuple<KeyPoint, vector<uint8_t>>> corners2 = harris_stephens_corners(image2, k, threshold);
 
   Mat result;
-  drawKeypoints(image1, corners1, result, Scalar(50));
+  vector<KeyPoint> keypoints;
+  for(int i = 0; i < corners1.size(); i++) {
+    keypoints.push_back(get<0>(corners1[i]));
+  }
+  drawKeypoints(image1, keypoints, result, Scalar(50));
   write(argv[1], result, "-harris-corners");
-  drawKeypoints(image2, corners2, result, Scalar(50));
+  keypoints.clear();
+  for(int i = 0; i < corners2.size(); i++) {
+    keypoints.push_back(get<0>(corners2[i]));
+  }
+  drawKeypoints(image2, keypoints, result, Scalar(50));
   write(argv[2], result, "-harris-corners");
 
   Mat composite_image = create_composite_image(image1, image2);
-  vector<tuple<KeyPoint, KeyPoint>> matches = getMatches(grayscale_img1, corners1, grayscale_img2, corners2, &ssd);
+  vector<tuple<KeyPoint, KeyPoint>> matches = getMatches(corners1, corners2);
 
   Point2f offset = Point2f(image1.cols, 0);
   for(auto it = matches.begin(); it < matches.end(); it++) {

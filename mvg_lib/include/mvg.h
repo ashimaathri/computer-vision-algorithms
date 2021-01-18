@@ -30,12 +30,8 @@ Mat solveConicSystem(vector<Mat> points);
 Mat getConic();
 Mat intersectLineAndConic(Mat conic, Mat P, Mat Q);
 Mat transformConic(Mat pointTransform, Mat conic);
-vector<KeyPoint> harris_stephens_corners(Mat image, float k, float threshold);
+vector<tuple<KeyPoint, vector<uint8_t>>> harris_stephens_corners(Mat image, float k, float threshold);
 Mat create_composite_image(Mat image1, Mat image2);
-float ssd(Mat image1, Point2f point1, Mat image2, Point2f point2);
 vector<tuple<KeyPoint, KeyPoint>> getMatches(
-    Mat image1,
-    vector<KeyPoint> corners1,
-    Mat image2,
-    vector<KeyPoint> corners2,
-    float(*distance)(Mat, Point2f, Mat, Point2f));
+    vector<tuple<KeyPoint, vector<uint8_t>>> corners1,
+    vector<tuple<KeyPoint, vector<uint8_t>>> corners2);

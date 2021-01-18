@@ -129,11 +129,42 @@ Mat non_maximal_suppression(Mat values) {
   return local_maximas;
 }
 
-vector<KeyPoint> harris_stephens_corners(Mat image, float k, float threshold) {
-  assert(image.channels() == 1);
+vector<uint8_t> makeDescriptor(Mat image, Point2f point) {
+  assert(image.channels() == 3);
 
-  Mat Ix = convolve(image, SOBEL_X, CV_32FC1);
-  Mat Iy = convolve(image, SOBEL_Y, CV_32FC1);
+  int numElements = 0;
+  int windowSize = 15;
+  vector<uint8_t> descriptor(image.channels() * windowSize * windowSize, 0);
+
+  int halfWindowSize = windowSize / 2;
+
+  for(int i = -halfWindowSize; i <= halfWindowSize; i++) {
+    for(int j = -halfWindowSize; j <= halfWindowSize; j++) {
+      int y = point.y + i;
+      int x = point.x + j;
+      if(y >= image.rows) {
+        y = image.rows - 1;
+      }
+      if(x >= image.cols) {
+        x = image.cols - 1;
+      }
+      Vec3b intensity = image.at<Vec3b>(y, x);
+      for(int c = 0; c < 3; c++) {
+        descriptor.push_back(intensity[c]);
+      }
+    }
+  }
+
+  return descriptor;
+}
+
+vector<tuple<KeyPoint, vector<uint8_t>>> harris_stephens_corners(Mat image, float k, float threshold) {
+  Mat grayscale;
+
+  cvtColor(image, grayscale, COLOR_RGB2GRAY);
+
+  Mat Ix = convolve(grayscale, SOBEL_X, CV_32FC1);
+  Mat Iy = convolve(grayscale, SOBEL_Y, CV_32FC1);
 
   Mat Ixx, Iyy, Ixy;
 
@@ -151,7 +182,7 @@ vector<KeyPoint> harris_stephens_corners(Mat image, float k, float threshold) {
       BORDER_DEFAULT);
 
   Size size = Ixx.size();
-  Mat R = Mat(image.size(), CV_32FC1);
+  Mat R = Mat(grayscale.size(), CV_32FC1);
 
   for(int r = 0; r < size.height; r++) {
     for(int c = 0; c < size.width; c++) {
@@ -168,11 +199,12 @@ vector<KeyPoint> harris_stephens_corners(Mat image, float k, float threshold) {
   normalize(R, R_normalized, 0, 255, NORM_MINMAX, CV_32FC1, Mat());
   R_normalized = non_maximal_suppression(R_normalized);
 
-  vector<KeyPoint> corners;
+  vector<tuple<KeyPoint, vector<uint8_t>>> corners;
   for(int i = 0; i < R_normalized.rows; i++) {
     for(int j = 0; j < R_normalized.cols; j++) {
       if(R_normalized.at<float>(i,j) > threshold) {
-        corners.push_back(KeyPoint(Point2f(j, i), 1.f));
+        Point2f point = Point2f(j, i);
+        corners.push_back(make_tuple(KeyPoint(point, 1.f), makeDescriptor(image, point)));
       }
     }
   }
@@ -188,30 +220,16 @@ Mat create_composite_image(Mat image1, Mat image2) {
   return composite;
 }
 
-float ssd(Mat image1, Point2f point1, Mat image2, Point2f point2) {
-  assert(image1.channels() == 1 && image2.channels() == 1);
+float sumAbsDiff(vector<uint8_t> a, vector<uint8_t> b) {
+  assert(a.size() == b.size());
 
-  // Patch size = half_patch_size * 2 + 1
-  int half_patch_size = 10;
   float result = 0;
-  int num_elements = 0;
 
-  for(int i = -half_patch_size; i <= half_patch_size && point1.y + i < image1.rows && point2.y + i < image2.rows; i++) {
-    for(int j = -half_patch_size; j <= half_patch_size && point1.x + j < image1.cols && point2.x + j < image2.cols; j++) {
-      int diff = image1.at<uint8_t>(point1.y + i, point1.x + j) -
-          image2.at<uint8_t>(point2.y + i, point2.x + j);
-      result += abs(diff); // abs is better than square
-      num_elements++;
-    }
+  for(int i = 0; i < a.size(); i++) {
+    result += abs(a[i] - b[i]);
   }
 
-  return result / num_elements;
-}
-
-bool sort_by_score(
-    tuple <float, KeyPoint, KeyPoint> &a,
-    tuple <float, KeyPoint, KeyPoint> &b) {
-  return get<0>(a) < get<0>(b);
+  return result;
 }
 
 bool sortByScore(
@@ -221,24 +239,16 @@ bool sortByScore(
 }
 
 vector<tuple<KeyPoint, KeyPoint>> getMatches(
-    Mat image1,
-    vector<KeyPoint> corners1,
-    Mat image2,
-    vector<KeyPoint> corners2,
-    float(*distance)(Mat, Point2f, Mat, Point2f)) {
+    vector<tuple<KeyPoint, vector<uint8_t>>> corners1,
+    vector<tuple<KeyPoint, vector<uint8_t>>> corners2) {
   bool swapped = false;
-  Mat keyImage, matchImage;
-  vector<KeyPoint> keyCorners, matchCorners; 
+  vector<tuple<KeyPoint, vector<uint8_t>>> keyCorners, matchCorners; 
 
   if(corners1.size() < corners2.size()) {
-    keyImage = image1;
-    matchImage = image2;
     keyCorners = corners1;
     matchCorners = corners2;
   } else {
     swapped = true;
-    keyImage = image2;
-    matchImage = image1;
     keyCorners = corners2;
     matchCorners = corners1;
   }
@@ -253,10 +263,10 @@ vector<tuple<KeyPoint, KeyPoint>> getMatches(
     int bestPosition = 0;
     float bestScore = numeric_limits<float>::infinity();
 
-    KeyPoint keyCorner = keyCorners.at(i);
+    tuple<KeyPoint, vector<uint8_t>> keyCorner = keyCorners.at(i);
 
     for(int j = 0; j < matchCorners.size(); j++) {
-      float score = distance(keyImage, keyCorner.pt, matchImage, matchCorners.at(j).pt);
+      float score = sumAbsDiff(get<1>(keyCorner), get<1>(matchCorners.at(j)));
 
       if(score < bestScore) {
         bool matchNotTaken = (matches.find(j) == matches.end());
@@ -294,11 +304,11 @@ vector<tuple<KeyPoint, KeyPoint>> getMatches(
 
   if(swapped) {
     for(auto it = sortedMatches.begin(); it < sortedMatches.end() && i < numMatches; it++, i++) {
-      topMatches.push_back(make_tuple(matchCorners.at(get<0>(*it)), keyCorners.at(get<1>(*it))));
+      topMatches.push_back(make_tuple(get<0>(matchCorners.at(get<0>(*it))), get<0>(keyCorners.at(get<1>(*it)))));
     }
   } else {
     for(auto it = sortedMatches.begin(); it < sortedMatches.end() && i < numMatches; it++, i++) {
-      topMatches.push_back(make_tuple(keyCorners.at(get<1>(*it)), matchCorners.at(get<0>(*it))));
+      topMatches.push_back(make_tuple(get<0>(keyCorners.at(get<1>(*it))), get<0>(matchCorners.at(get<0>(*it)))));
     }
   }
 
