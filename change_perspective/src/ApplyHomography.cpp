@@ -17,44 +17,6 @@ Mat construct_roi_mask(int height, int width, vector<Point2f> points) {
   return mask;
 }
 
-Point2f transform_point(Mat homography, float x, float y) {
-  Point2f transformed_point;
-
-  Mat homogeneous_src_point = (Mat_<float>(3, 1) << x, y, 1);
-  Mat homogeneous_dst_point = homography * homogeneous_src_point;
-
-  float w = homogeneous_dst_point.at<float>(2, 0);
-  transformed_point.x = homogeneous_dst_point.at<float>(0, 0) / w;
-  transformed_point.y = homogeneous_dst_point.at<float>(1, 0) / w;
-
-  return transformed_point;
-}
-
-// Very slow because it goes pixel by pixel instead of using GPU matrix
-// operations
-Vec3b interpolate(Mat image, Point2f point) {
-  float int_x, int_y;
-  float frac_x = modf(point.x, &int_x);
-  float frac_y = modf(point.y, &int_y);
-
-  Vec3b f11 = image.at<Vec3b>(int_y, int_x);
-  Vec3b f12 = image.at<Vec3b>(int_y + 1, int_x);
-  Vec3b f21 = image.at<Vec3b>(int_y, int_x + 1);
-  Vec3b f22 = image.at<Vec3b>(int_y + 1, int_x + 1);
-  Vec3b interpolated_value;
-
-  Mat x_weights = (Mat_<float>(1, 2) << (1 - frac_x), frac_x);
-  Mat y_weights = (Mat_<float>(2, 1) << (1 - frac_y), frac_y);
-
-  for(int i = 0; i < image.channels(); i++) {
-    Mat neighbor_intensities = (Mat_<float>(2, 2) << f11[i], f12[i], f21[i], f22[i]);
-    Mat result = x_weights * neighbor_intensities * y_weights;
-    interpolated_value[i] = result.at<float>(0, 0);
-  }
-
-  return interpolated_value;
-}
-
 Mat copyPerspectively(Mat to, Mat from, Mat homography, std::vector <Point2f> points) {
   int dstHeight = to.size().height;
   int dstWidth = to.size().width;

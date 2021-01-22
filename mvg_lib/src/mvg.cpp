@@ -550,36 +550,75 @@ Mat computeHomography(std::vector <Point2f> from, std::vector <Point2f> to) {
   return Vt(Range(8, 9), Range::all()).reshape(0, 3);
 }
 
+Point2f transform_point(Mat homography, float x, float y) {
+  Point2f transformed_point;
+
+  Mat homogeneous_src_point = (Mat_<float>(3, 1) << x, y, 1);
+  Mat homogeneous_dst_point = homography * homogeneous_src_point;
+
+  float w = homogeneous_dst_point.at<float>(2, 0);
+  transformed_point.x = homogeneous_dst_point.at<float>(0, 0) / w;
+  transformed_point.y = homogeneous_dst_point.at<float>(1, 0) / w;
+
+  return transformed_point;
+}
+
+// Very slow because it goes pixel by pixel instead of using GPU matrix
+// operations
+Vec3b interpolate(Mat image, Point2f point) {
+  float int_x, int_y;
+  float frac_x = modf(point.x, &int_x);
+  float frac_y = modf(point.y, &int_y);
+
+  Vec3b f11 = image.at<Vec3b>(int_y, int_x);
+  Vec3b f12 = image.at<Vec3b>(int_y + 1, int_x);
+  Vec3b f21 = image.at<Vec3b>(int_y, int_x + 1);
+  Vec3b f22 = image.at<Vec3b>(int_y + 1, int_x + 1);
+  Vec3b interpolated_value;
+
+  Mat x_weights = (Mat_<float>(1, 2) << (1 - frac_x), frac_x);
+  Mat y_weights = (Mat_<float>(2, 1) << (1 - frac_y), frac_y);
+
+  for(int i = 0; i < image.channels(); i++) {
+    Mat neighbor_intensities = (Mat_<float>(2, 2) << f11[i], f12[i], f21[i], f22[i]);
+    Mat result = x_weights * neighbor_intensities * y_weights;
+    interpolated_value[i] = result.at<float>(0, 0);
+  }
+
+  return interpolated_value;
+}
+
+// Back project the corners of the image to get the bounds for the final result
+// image, it's not simply image.size()
+// Pass dst size as argument?
 Mat changePerspective(Mat image, Mat homography) {
   cout << "Applying homography" << endl;
   // Origin of our coordinate system is top-left of image
   int height = image.size().height;
   int width = image.size().width;
 
-  Mat world = Mat(height, width, image.type());
-  Mat mapX = Mat(height, width, CV_32FC1);
-  Mat mapY = Mat(height, width, CV_32FC1);
-  for(int i = 0; i < width; i++) {
-    for(int j = 0; j < height; j++) {
-      const float homogeneousPoint[3] = {(float)i, (float)j, 1};
-      Mat imagePoint = homography * Mat(3, 1, CV_32FC1, (void*)&homogeneousPoint);
-      float imageZ = imagePoint.at<float>(2, 0);
-      float imageX = imagePoint.at<float>(0, 0)/imageZ;
-      float imageY = imagePoint.at<float>(1, 0)/imageZ;
-      if(imageX > 0 && imageY > 0 && imageX < width && imageY < height) {
-        mapX.at<float>(j, i) = imageX;
-        mapY.at<float>(j, i) = imageY;
+  Mat dstX = Mat(height, width, CV_32FC1);
+  Mat dstY = Mat(height, width, CV_32FC1);
+  Mat transformedSrc = Mat(height, width, image.type());
+
+  for(int x = 0; x < width; x++) {
+    for(int y = 0; y < height; y++) {
+      Point2f srcPoint = transform_point(homography, x, y);
+      if(srcPoint.x > 0 && srcPoint.y > 0 && srcPoint.x < width - 1 && srcPoint.y < height - 1) {
+        dstX.at<float>(y, x) = srcPoint.x;
+        dstY.at<float>(y, x) = srcPoint.y;
+        transformedSrc.at<Vec3b>(y, x) = interpolate(image, srcPoint);
       } else {
         // Setting the x and y values in the maps to a value outside the image
         // causes them to be treated as "outliers" in the image and the default
         // BORDER_CONSTANT flag maps outliers to 0
-        mapX.at<float>(j, i) = width + 1;
-        mapY.at<float>(j, i) = height + 1;
+        dstX.at<float>(y, x) = width + 1;
+        dstY.at<float>(y, x) = height + 1;
+        transformedSrc.at<Vec3b>(y, x) = Vec3b(0, 0, 0);
       }
     }
   }
-  remap(image, world, mapX, mapY, INTER_LINEAR);
-  return world;
+  return transformedSrc;
 }
 
 Mat computeScaling(Mat image, Mat homography) {

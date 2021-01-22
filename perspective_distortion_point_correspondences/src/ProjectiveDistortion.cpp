@@ -41,7 +41,8 @@ int main(int argc, char** argv )
    * Mat scaling = computeScaling(image, homography);
    * Mat correctedImage = changePerspective(image, homography * scaling);
    */ 
-  Mat correctedImage = changePerspective(image, homography);
+  Mat scaling = computeScaling(image, homography);
+  Mat correctedImage = changePerspective(image, homography * scaling);
 
   display(correctedImage);
   write(argv[1], correctedImage);

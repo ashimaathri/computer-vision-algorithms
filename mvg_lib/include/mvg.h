@@ -32,6 +32,8 @@ Mat intersectLineAndConic(Mat conic, Mat P, Mat Q);
 Mat transformConic(Mat pointTransform, Mat conic);
 vector<tuple<KeyPoint, vector<uint8_t>>> harris_stephens_corners(Mat image, float k, float threshold);
 Mat create_composite_image(Mat image1, Mat image2);
+Point2f transform_point(Mat homography, float x, float y);
+Vec3b interpolate(Mat image, Point2f point);
 vector<tuple<KeyPoint, KeyPoint>> getMatches(
     vector<tuple<KeyPoint, vector<uint8_t>>> corners1,
     vector<tuple<KeyPoint, vector<uint8_t>>> corners2);
