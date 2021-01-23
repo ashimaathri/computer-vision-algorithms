@@ -149,7 +149,9 @@ int main(int argc, char** argv) {
 
   for(int i = 0; i < numImages - 1; i++) {
     homographies.push_back(ransac(images.at(i), images.at(i + 1), k, threshold));
-    display(changePerspective(images.at(i), homographies.at(i)));
+    Mat result;
+    result = changePerspective(images.at(i), homographies.at(i));
+    write("result_" + to_string(i), result);
   }
 
   return 0;

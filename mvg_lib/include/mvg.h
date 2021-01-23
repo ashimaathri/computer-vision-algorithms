@@ -13,6 +13,7 @@ Mat changePerspective(Mat image, Mat homography);
 Mat computeHomography(std::vector <Point2f> from, std::vector <Point2f> to);
 void write(char* nameOfOriginal, Mat image, string suffix =
     string("-corrected"));
+void write(string nameOfOriginal, Mat image, std::string suffix = "");
 void display(Mat image);
 void receivePointCorrespondence(std::vector <Point2f> &points, const
     std::string &type);

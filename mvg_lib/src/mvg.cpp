@@ -563,6 +563,19 @@ Point2f transform_point(Mat homography, float x, float y) {
   return transformed_point;
 }
 
+Point2f transform_point(Mat homography, Point2f point) {
+  Point2f transformed_point;
+
+  Mat homogeneous_src_point = (Mat_<float>(3, 1) << point.x, point.y, 1);
+  Mat homogeneous_dst_point = homography * homogeneous_src_point;
+
+  float w = homogeneous_dst_point.at<float>(2, 0);
+  transformed_point.x = homogeneous_dst_point.at<float>(0, 0) / w;
+  transformed_point.y = homogeneous_dst_point.at<float>(1, 0) / w;
+
+  return transformed_point;
+}
+
 // Very slow because it goes pixel by pixel instead of using GPU matrix
 // operations
 Vec3b interpolate(Mat image, Point2f point) {
@@ -588,32 +601,53 @@ Vec3b interpolate(Mat image, Point2f point) {
   return interpolated_value;
 }
 
+tuple<Point2f, Point2f> computeBounds(Mat image, Mat homography) {
+  Point2f left{
+    std::numeric_limits<float>::infinity(),
+    std::numeric_limits<float>::infinity()};
+  Point2f right{
+    -std::numeric_limits<float>::infinity(),
+    -std::numeric_limits<float>::infinity()};
+
+  vector<Point2f> extent{
+    Point2f(0, 0),
+    Point2f(image.cols, 0),
+    Point2f(0, image.rows),
+    Point2f(image.cols, image.rows)};
+
+  Mat inverseHomography = homography.inv();
+
+  for(auto it = extent.begin(); it != extent.end(); it++) {
+    Point2f transformedPoint = transform_point(inverseHomography, (*it));
+    left.x = transformedPoint.x < left.x ? transformedPoint.x : left.x;
+    right.x = transformedPoint.x > right.x ? transformedPoint.x : right.x;
+    left.y = transformedPoint.y < left.y ? transformedPoint.y : left.y;
+    right.y = transformedPoint.y > right.y ? transformedPoint.y : right.y;
+  }
+
+  return make_tuple(left, right);
+}
+
 // Back project the corners of the image to get the bounds for the final result
 // image, it's not simply image.size()
 // Pass dst size as argument?
 Mat changePerspective(Mat image, Mat homography) {
   cout << "Applying homography" << endl;
   // Origin of our coordinate system is top-left of image
-  int height = image.size().height;
-  int width = image.size().width;
 
-  Mat dstX = Mat(height, width, CV_32FC1);
-  Mat dstY = Mat(height, width, CV_32FC1);
+  tuple<Point2f, Point2f> transformedExtent = computeBounds(image, homography);
+  Point2f left = get<0>(transformedExtent);
+  Point2f right = get<1>(transformedExtent);
+  int height = right.y - left.y;
+  int width = right.x - left.x;
   Mat transformedSrc = Mat(height, width, image.type());
 
   for(int x = 0; x < width; x++) {
     for(int y = 0; y < height; y++) {
-      Point2f srcPoint = transform_point(homography, x, y);
+      Point2f srcPoint = transform_point(homography, x + left.x, y + left.y);
       if(srcPoint.x > 0 && srcPoint.y > 0 && srcPoint.x < width - 1 && srcPoint.y < height - 1) {
-        dstX.at<float>(y, x) = srcPoint.x;
-        dstY.at<float>(y, x) = srcPoint.y;
         transformedSrc.at<Vec3b>(y, x) = interpolate(image, srcPoint);
       } else {
-        // Setting the x and y values in the maps to a value outside the image
-        // causes them to be treated as "outliers" in the image and the default
-        // BORDER_CONSTANT flag maps outliers to 0
-        dstX.at<float>(y, x) = width + 1;
-        dstY.at<float>(y, x) = height + 1;
         transformedSrc.at<Vec3b>(y, x) = Vec3b(0, 0, 0);
       }
     }
@@ -659,6 +693,15 @@ Mat computeScaling(Mat image, Mat homography) {
 
 void write(char* nameOfOriginal, Mat image, std::string suffix) {
   string path = string(nameOfOriginal);
+  string filename = path.substr(path.find_last_of("/") + 1, path.length());
+  string imagename = filename.substr(0, filename.find_last_of("."));
+  string outputFilename = "output/" + imagename + suffix + ".jpg";
+  cout << "Writing to " << outputFilename << endl;
+  imwrite(outputFilename, image);
+}
+
+void write(string nameOfOriginal, Mat image, std::string suffix) {
+  string path = nameOfOriginal;
   string filename = path.substr(path.find_last_of("/") + 1, path.length());
   string imagename = filename.substr(0, filename.find_last_of("."));
   string outputFilename = "output/" + imagename + suffix + ".jpg";
