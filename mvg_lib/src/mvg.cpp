@@ -691,15 +691,6 @@ Mat computeScaling(Mat image, Mat homography) {
   return (Mat_<float>(3, 3) << finalScaleFactor, 0, minWidth, 0, finalScaleFactor, minHeight, 0, 0, 1);
 }
 
-void write(char* nameOfOriginal, Mat image, std::string suffix) {
-  string path = string(nameOfOriginal);
-  string filename = path.substr(path.find_last_of("/") + 1, path.length());
-  string imagename = filename.substr(0, filename.find_last_of("."));
-  string outputFilename = "output/" + imagename + suffix + ".jpg";
-  cout << "Writing to " << outputFilename << endl;
-  imwrite(outputFilename, image);
-}
-
 void write(string nameOfOriginal, Mat image, std::string suffix) {
   string path = nameOfOriginal;
   string filename = path.substr(path.find_last_of("/") + 1, path.length());
@@ -707,6 +698,10 @@ void write(string nameOfOriginal, Mat image, std::string suffix) {
   string outputFilename = "output/" + imagename + suffix + ".jpg";
   cout << "Writing to " << outputFilename << endl;
   imwrite(outputFilename, image);
+}
+
+void write(char* nameOfOriginal, Mat image, std::string suffix) {
+  return write(string(nameOfOriginal), image, suffix);
 }
 
 void display(Mat image) {
